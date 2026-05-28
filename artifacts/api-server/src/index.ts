@@ -1,3 +1,12 @@
+import { config as loadDotenv } from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Load .env from the same directory as this file (works from dist/ too)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadDotenv({ path: path.resolve(__dirname, "../.env") });
+loadDotenv({ path: path.resolve(__dirname, ".env") }); // fallback if co-located
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startNgrok } from "./lib/ngrok";

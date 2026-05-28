@@ -26,11 +26,3 @@ externalPort = 80
 [[ports]]
 localPort = 8081
 externalPort = 8081
-
-[userenv]
-
-[userenv.shared]
-JWT_SECRET = "354791ab239f5f16416e93a08ea9c30beecab10ebc271d663a7abe22aed73daff5d4f3877947684d91f0afacd3ace439d25b370635b629e8d11895edb73ab59c"
-JWT_EXPIRES_IN = "7d"
-APP_NAME = "TermuxHost"
-NODE_ENV = "development"
