@@ -2,36 +2,72 @@
 
 Complete guide to running TermuxHost on Android using Termux.
 
+> **Key point:** Do NOT run `pnpm install` from the project root in Termux.  
+> The root workspace is configured for Linux x64 (Replit). Use the `termux/` folder instead — it runs the pre-compiled server bundle directly.
+
 ---
 
 ## Requirements
 
 - Android 7.0 or later
-- [Termux](https://f-droid.org/en/packages/com.termux/) (install from F-Droid, NOT Google Play)
-- 500 MB free storage minimum
+- [Termux](https://f-droid.org/en/packages/com.termux/) from **F-Droid** (NOT Google Play — the Play version is outdated)
+- 200 MB free storage minimum
 - Internet connection
 
 ---
 
-## Step 1 — Install Termux Packages
+## Quick Start (Automated)
 
 ```bash
+# 1. Install packages
 pkg update && pkg upgrade -y
-pkg install nodejs git python -y
+pkg install nodejs git -y
+
+# 2. Clone the repository
+git clone https://github.com/yourusername/termuxhost-api.git ~/termuxhost
+cd ~/termuxhost/artifacts/api-server/termux
+
+# 3. Run setup (installs deps, creates .env, gives instructions)
+bash setup.sh
 ```
 
-Verify installations:
+Then fill in your `.env`:
 ```bash
-node --version   # should be v18+
-python --version # should be 3.x
-git --version
+nano ../.env
+```
+
+Then start:
+```bash
+npm run pm2
+pm2 save && pm2 startup
 ```
 
 ---
 
-## Step 2 — Install PM2 (Global)
+## Step-by-Step Guide
 
-PM2 keeps the API server running even after closing Termux:
+### Step 1 — Install Termux Packages
+
+```bash
+pkg update && pkg upgrade -y
+pkg install nodejs git -y
+```
+
+**Python** is only needed if you want to host Python projects:
+```bash
+pkg install python -y
+```
+
+Verify Node.js:
+```bash
+node --version   # must be v18+
+```
+
+---
+
+### Step 2 — Install PM2
+
+PM2 keeps the server running even when Termux is minimized:
 
 ```bash
 npm install -g pm2
@@ -39,93 +75,124 @@ npm install -g pm2
 
 ---
 
-## Step 3 — Clone the Repository
+### Step 3 — Clone the Repository
 
 ```bash
-cd ~
-git clone https://github.com/yourusername/termuxhost-api.git
-cd termuxhost-api
+git clone https://github.com/yourusername/termuxhost-api.git ~/termuxhost
 ```
 
 ---
 
-## Step 4 — Install Dependencies
+### Step 4 — Go to the Termux Directory
 
 ```bash
-cd artifacts/api-server
+cd ~/termuxhost/artifacts/api-server/termux
+```
+
+> **Important:** Always work from the `termux/` subdirectory in Termux, NOT from the project root. The root uses a pnpm workspace that is configured for Linux x64 only.
+
+---
+
+### Step 5 — Install Runtime Packages
+
+```bash
 npm install
 ```
 
-> **Note:** If any package fails with a native binding error, it is safe to ignore — all native modules are externalized and none are required for core functionality.
+This installs only 2 small packages:
+- `nodemailer` — for sending verification/reset emails
+- `@ngrok/ngrok` — for public tunnel URLs (optional, installed as optional dep)
+
+If `@ngrok/ngrok` fails on your Android version, that is fine — ngrok is optional. The server will still run; you can use the ngrok CLI directly instead.
 
 ---
 
-## Step 5 — Configure Environment
+### Step 6 — Configure Environment
 
 ```bash
-cp .env.example .env
-nano .env
+cp ../.env.example ../.env
+nano ../.env
 ```
 
-Required variables:
-- `DATABASE_URL` — your Neon PostgreSQL connection string
-- `JWT_SECRET` — a long random string (use `openssl rand -hex 32`)
-- `EMAIL_USER` — your Gmail address
-- `EMAIL_PASS` — your Gmail App Password
-- `NGROK_AUTHTOKEN` — your ngrok auth token
+**Required values:**
 
-Optional:
-- `PROJECTS_DIR` — custom path for project files (default: `./projects`)
-- `NVIDIA_API_KEY` — for AI features
-- `CORS_ORIGINS` — comma-separated frontend origins
+| Variable | What to put |
+|---|---|
+| `DATABASE_URL` | Your Neon PostgreSQL connection string |
+| `JWT_SECRET` | A long random string — run `openssl rand -hex 32` |
+| `PORT` | `3000` (or any free port) |
 
-Save and exit: `Ctrl+X`, then `Y`, then `Enter`.
+**Optional values:**
+
+| Variable | What to put |
+|---|---|
+| `EMAIL_USER` | Your Gmail address |
+| `EMAIL_PASS` | Your Gmail App Password (16 chars) |
+| `NGROK_AUTHTOKEN` | Your ngrok auth token |
+| `NVIDIA_API_KEY` | For AI features |
+| `CORS_ORIGINS` | Your frontend URL on Vercel/GitHub Pages |
+
+Save: `Ctrl+X` → `Y` → `Enter`
 
 ---
 
-## Step 6 — Push Database Schema
+### Step 7 — Set Up the Database
 
-Run this once to set up all database tables:
+Run this once to create all database tables in Neon:
 
 ```bash
-cd ~/termuxhost-api
-DATABASE_URL="$(grep DATABASE_URL artifacts/api-server/.env | cut -d= -f2-)" \
-  node -e "require('child_process').execSync('npx drizzle-kit push --config lib/db/drizzle.config.ts', {stdio: 'inherit'})"
+# Install drizzle-kit locally (one-time)
+npm install -g drizzle-kit
+
+# Run push from the lib/db directory
+cd ~/termuxhost/lib/db
+DATABASE_URL="$(grep '^DATABASE_URL=' ~/termuxhost/artifacts/api-server/.env | cut -d= -f2-)" \
+  npx drizzle-kit push --config ./drizzle.config.ts
 ```
 
-Or if you have pnpm installed:
+Or use any PostgreSQL client to verify tables exist:
 ```bash
-pnpm --filter @workspace/db run push
+# Optional: install psql
+pkg install postgresql -y
+psql "$DATABASE_URL" -c "\dt"
 ```
 
 ---
 
-## Step 7 — Build the API Server
+### Step 8 — Start the Server
 
+**With PM2 (recommended — keeps running in background):**
 ```bash
-cd ~/termuxhost-api/artifacts/api-server
-node ./build.mjs
-```
-
-You should see `dist/index.mjs` created.
-
----
-
-## Step 8 — Start with PM2
-
-```bash
-cd ~/termuxhost-api/artifacts/api-server
-pm2 start dist/index.mjs \
-  --name termuxhost-api \
-  --interpreter node \
-  --env-file .env
+cd ~/termuxhost/artifacts/api-server/termux
+npm run pm2
 pm2 save
+pm2 startup
 ```
 
-Enable PM2 on startup:
+**Direct start (stays in foreground):**
 ```bash
-pm2 startup
-# follow the printed instructions
+bash start.sh
+```
+
+---
+
+### Step 9 — Test the API
+
+```bash
+curl http://localhost:3000/api/healthz
+```
+
+Expected response: `{"status":"ok"}`
+
+---
+
+### Step 10 — Create the First Admin User
+
+Register normally through the API, then promote to admin:
+
+```bash
+psql "$DATABASE_URL" -c \
+  "UPDATE users SET is_admin=true, is_verified=true WHERE email='your@email.com';"
 ```
 
 ---
@@ -133,81 +200,78 @@ pm2 startup
 ## PM2 Commands
 
 ```bash
-pm2 status              # check if running
-pm2 logs termuxhost-api # view live logs
-pm2 restart termuxhost-api
-pm2 stop termuxhost-api
-pm2 delete termuxhost-api
+pm2 status                    # check if running
+pm2 logs termuxhost-api       # view live logs
+pm2 restart termuxhost-api    # restart server
+pm2 stop termuxhost-api       # stop server
+pm2 delete termuxhost-api     # remove from PM2
 ```
 
 ---
 
-## Step 9 — Test the API
+## Termux Wake Lock (Keep Running When Screen Off)
 
 ```bash
-curl http://localhost:3000/api/healthz
+termux-wake-lock
 ```
 
-Expected: `{"status":"ok"}`
-
----
-
-## Step 10 — Create the First Admin
-
-Register normally, then manually set admin in the database:
-
-```bash
-# In psql or any PostgreSQL client connected to your Neon DB:
-UPDATE users SET is_admin = true, is_verified = true WHERE email = 'your@email.com';
-```
-
----
-
-## Termux Wake Lock (Keep Running)
-
-To prevent Android from killing Termux when the screen is off:
-
-1. In Termux, run: `termux-wake-lock`
-2. Or keep the notification visible (tap "Acquire wakelock" in Termux notification)
+Or tap the Termux notification and press **"Acquire wakelock"**.
 
 ---
 
 ## Storage Permissions (Optional)
 
-If you want to store project files on external storage:
+To store project files on shared/SD card storage:
 
 ```bash
 termux-setup-storage
 ```
 
-Then set `PROJECTS_DIR=/sdcard/termuxhost/projects` in your `.env`.
+Then set in `.env`:
+```env
+PROJECTS_DIR=/sdcard/termuxhost/projects
+```
 
 ---
 
 ## Troubleshooting
 
-### "node: command not found"
+### "pnpm install" fails with "Use pnpm instead"
+**Do not run `pnpm install` from the project root in Termux.**  
+Go to `artifacts/api-server/termux/` and run `npm install` instead.
+
+### "node ./build.mjs" fails with missing @esbuild/android-arm64
+**Do not run `node ./build.mjs` in Termux.**  
+The server comes pre-compiled. You do not need to build it.  
+Just run `npm start` or `npm run pm2` from the `termux/` directory.
+
+### @ngrok/ngrok fails to install
+This is expected on some Android versions. It is an optional package.  
+The server will start without it. You can run ngrok manually:
 ```bash
-pkg install nodejs
+# Download ngrok for Android ARM64 from https://ngrok.com/download
+# Then run:
+./ngrok http 3000
 ```
 
-### "npm: command not found"
-npm comes with Node.js. Re-run `pkg install nodejs`.
-
 ### Port 3000 already in use
-Change `PORT=3001` in `.env` and rebuild.
+Change `PORT=3001` in `.env` and restart.
 
-### Database connection failed
-- Ensure `DATABASE_URL` is correct in `.env`
-- Check that Neon project is active and not paused
-- Verify SSL: the URL should end with `?sslmode=require`
+### "Cannot find package 'esbuild'"
+You ran `node ./build.mjs` from the wrong directory.  
+That is only for Replit (Linux). In Termux, use `termux/` → `npm start`.
 
-### Ngrok not connecting
-- Check `NGROK_AUTHTOKEN` is set correctly
-- Ensure you are not on a corporate/restricted network
-- Try restarting: `POST /api/ngrok/reconnect`
+### Server starts but email doesn't send
+- Verify `EMAIL_USER` and `EMAIL_PASS` are set in `.env`  
+- `EMAIL_PASS` must be a Gmail App Password (16 chars, no spaces), not your normal Gmail password
 
-### Email not sending
-- Verify Gmail App Password (not your regular password)
-- Check 2FA is enabled on your Google account
-- Test: `POST /api/auth/resend-verification`
+### Database connection error
+- Verify `DATABASE_URL` is correct and includes `?sslmode=require`
+- Check that your Neon project is active (log in to neon.tech)
+
+### Server crashes immediately
+Check logs:
+```bash
+pm2 logs termuxhost-api --lines 50
+```
+The most common cause is a missing required env var (`DATABASE_URL`, `JWT_SECRET`, or `PORT`).

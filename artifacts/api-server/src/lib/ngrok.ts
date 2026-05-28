@@ -1,13 +1,27 @@
-import ngrok from "@ngrok/ngrok";
 import { logger } from "./logger";
+
+type NgrokModule = typeof import("@ngrok/ngrok");
+type NgrokListener = Awaited<ReturnType<NgrokModule["forward"]>>;
 
 let currentUrl: string | null = null;
 let isConnected = false;
-let listener: Awaited<ReturnType<typeof ngrok.forward>> | null = null;
+let listener: NgrokListener | null = null;
+let ngrokModule: NgrokModule | null = null;
 
 const NGROK_AUTHTOKEN = process.env.NGROK_AUTHTOKEN;
 const NGROK_DOMAIN = process.env.NGROK_DOMAIN;
 const PORT = Number(process.env.PORT ?? 3000);
+
+async function loadNgrok(): Promise<NgrokModule | null> {
+  if (ngrokModule) return ngrokModule;
+  try {
+    ngrokModule = await import("@ngrok/ngrok");
+    return ngrokModule;
+  } catch {
+    logger.warn("@ngrok/ngrok package not available — ngrok features disabled.");
+    return null;
+  }
+}
 
 export async function startNgrok(): Promise<string | null> {
   if (!NGROK_AUTHTOKEN) {
@@ -15,21 +29,24 @@ export async function startNgrok(): Promise<string | null> {
     return null;
   }
 
+  const ngrok = await loadNgrok();
+  if (!ngrok) return null;
+
   try {
     if (listener) {
       await stopNgrok();
     }
 
-    const forwardOpts: Parameters<typeof ngrok.forward>[0] = {
+    const forwardOpts: Record<string, unknown> = {
       addr: PORT,
       authtoken: NGROK_AUTHTOKEN,
     };
 
     if (NGROK_DOMAIN) {
-      (forwardOpts as Record<string, unknown>).domain = NGROK_DOMAIN;
+      forwardOpts.domain = NGROK_DOMAIN;
     }
 
-    listener = await ngrok.forward(forwardOpts);
+    listener = await ngrok.forward(forwardOpts as Parameters<NgrokModule["forward"]>[0]);
     currentUrl = listener.url() ?? null;
     isConnected = true;
 
@@ -51,12 +68,15 @@ export async function startNgrok(): Promise<string | null> {
 }
 
 export async function stopNgrok(): Promise<void> {
+  const ngrok = await loadNgrok();
   try {
     if (listener) {
       await listener.close();
       listener = null;
     }
-    await ngrok.disconnect();
+    if (ngrok) {
+      await ngrok.disconnect();
+    }
     isConnected = false;
     currentUrl = null;
     logger.info("Ngrok tunnel stopped.");
