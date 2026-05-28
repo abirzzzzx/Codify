@@ -19,8 +19,16 @@ const req = createRequire(import.meta.url);
 const { build } = await import(
   path.resolve(__dirname, "termux/node_modules/esbuild/lib/main.js")
 );
+// Entry point is dist/index.js — resolve it from the installed package's own package.json
+const pinoPluginPkg = JSON.parse(
+  (await import("node:fs")).readFileSync(
+    path.resolve(__dirname, "termux/node_modules/esbuild-plugin-pino/package.json"),
+    "utf8"
+  )
+);
+const pinoPluginMain = pinoPluginPkg.main || pinoPluginPkg.exports?.["."] || "dist/index.js";
 const { default: esbuildPluginPino } = await import(
-  path.resolve(__dirname, "termux/node_modules/esbuild-plugin-pino/plugin.js")
+  path.resolve(__dirname, "termux/node_modules/esbuild-plugin-pino", pinoPluginMain)
 );
 
 const distDir = path.resolve(__dirname, "dist");
