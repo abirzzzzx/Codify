@@ -2,6 +2,8 @@
 
 # compiled output
 dist
+# Allow pre-built server bundle for Termux deployment (no build step on Android)
+!artifacts/api-server/dist/
 tmp
 out-tsc
 *.tsbuildinfo

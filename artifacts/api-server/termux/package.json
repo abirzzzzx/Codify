@@ -2,13 +2,16 @@
   "name": "termuxhost-runtime",
   "version": "1.0.0",
   "private": true,
-  "description": "Runtime deps for TermuxHost — Termux/Android deployment",
+  "description": "Runtime + build deps for TermuxHost — Termux/Android deployment",
   "scripts": {
     "start": "node ../dist/index.mjs",
+    "build": "node ../termux-build.mjs",
     "setup": "bash ../setup.sh"
   },
   "dependencies": {
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "esbuild": "^0.25.0",
+    "esbuild-plugin-pino": "^2.2.0"
   },
   "optionalDependencies": {
     "@ngrok/ngrok": "^1.4.2"

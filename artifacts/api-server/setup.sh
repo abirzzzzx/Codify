@@ -44,21 +44,29 @@ if ! command -v pm2 &>/dev/null; then
 fi
 echo "[✓] PM2 $(pm2 --version)"
 
-# ── Runtime packages ───────────────────────────────────────
-echo "[*] Installing runtime dependencies..."
+# ── Runtime + build packages ───────────────────────────────
+echo "[*] Installing dependencies (nodemailer, esbuild, pino plugin)..."
 cd "$SCRIPT_DIR/termux"
 npm install --ignore-scripts 2>&1 | grep -v "^npm warn" || true
 cd "$SCRIPT_DIR"
-echo "[✓] Runtime dependencies installed"
+echo "[✓] Dependencies installed"
 
-# ── Verify dist ────────────────────────────────────────────
+# ── Build if dist is missing ───────────────────────────────
 if [ ! -f "$DIST" ]; then
   echo ""
-  echo "[!] dist/index.mjs not found at: $DIST"
-  echo "    Make sure you cloned the full repository."
-  exit 1
+  echo "[!] dist/index.mjs not found — building from source..."
+  echo "    (This takes ~30 seconds on first run)"
+  echo ""
+  node "$SCRIPT_DIR/termux-build.mjs"
+  echo ""
+  if [ ! -f "$DIST" ]; then
+    echo "[!] Build failed. Check errors above."
+    exit 1
+  fi
+  echo "[✓] Build successful"
+else
+  echo "[✓] Server bundle: $DIST"
 fi
-echo "[✓] Server bundle: $DIST"
 
 # ── .env ───────────────────────────────────────────────────
 if [ ! -f "$ENV_FILE" ]; then
