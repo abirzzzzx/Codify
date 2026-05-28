@@ -2,10 +2,10 @@
   "name": "termuxhost-runtime",
   "version": "1.0.0",
   "private": true,
-  "description": "Runtime dependencies for TermuxHost API — Termux/Android deployment",
+  "description": "Runtime deps for TermuxHost — Termux/Android deployment",
   "scripts": {
     "start": "node ../dist/index.mjs",
-    "pm2": "pm2 start ../dist/index.mjs --name termuxhost-api"
+    "setup": "bash ../setup.sh"
   },
   "dependencies": {
     "nodemailer": "^6.9.16"
