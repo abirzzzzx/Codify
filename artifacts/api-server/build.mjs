@@ -22,13 +22,9 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
-    // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
-    // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
-    // Examples of unbundleable packages:
-    // - uses native modules and loads them dynamically (e.g. sharp)
-    // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // Native modules
       "sharp",
       "better-sqlite3",
       "sqlite3",
@@ -49,7 +45,13 @@ async function buildAll() {
       "pg-native",
       "oracledb",
       "mongodb-client-encryption",
+      // Email
       "nodemailer",
+      // Ngrok — dynamic native loader
+      "@ngrok/ngrok",
+      // Process management
+      "pm2",
+      // ORM / DB
       "handlebars",
       "knex",
       "typeorm",
@@ -58,6 +60,7 @@ async function buildAll() {
       "@tensorflow/*",
       "@prisma/client",
       "@mikro-orm/*",
+      // Cloud SDKs
       "@grpc/*",
       "@swc/*",
       "@aws-sdk/*",
